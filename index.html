@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toyota Supra MK4 - Scroll Configurator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            z-index: 1;
+        }
+        canvas { display: block; }
+
+        /* Scroll bilan harakatlanuvchi matn bo'limlari */
+        .section {
+            position: relative;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 0 8%;
+            z-index: 2;
+            pointer-events: none;
+        }
+        .section-content {
+            max-width: 400px;
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(6px);
+            padding: 30px;
+            border-radius: 12px;
+            border-left: 3px solid #9b59b6;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .section-content.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .section-content h2 {
+            font-size: 32px;
+            margin-bottom: 12px;
+            color: #9b59b6;
+        }
+        .section-content p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #ddd;
+        }
+
+        #hero {
+            justify-content: center;
+            text-align: center;
+        }
+        #hero .section-content {
+            max-width: 600px;
+            border-left: none;
+            text-align: center;
+            background: transparent;
+        }
+        #hero h1 {
+            font-size: 56px;
+            letter-spacing: 2px;
+        }
+        #hero p {
+            font-size: 18px;
+            color: #aaa;
+            margin-top: 10px;
+        }
+        #hero .scroll-hint {
+            margin-top: 40px;
+            font-size: 14px;
+            color: #888;
+            animation: bounce 1.8s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(10px); }
+        }
+
+        /* Tuning bo'limi - eng oxirida */
+        #tuning {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        #tuning h2 {
+            font-size: 36px;
+            margin-bottom: 30px;
+            pointer-events: all;
+        }
+        .color-palette {
+            display: flex;
+            gap: 18px;
+            pointer-events: all;
+        }
+        .color-swatch {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid rgba(255,255,255,0.3);
+            transition: transform 0.25s ease, border-color 0.25s ease;
+        }
+        .color-swatch:hover {
+            transform: scale(1.15);
+            border-color: #fff;
+        }
+        .reset-swatch {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #333;
+            font-size: 20px;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            z-index: 100;
+        }
+
+        /* Progress indikator */
+        #progress-dots {
+            position: fixed;
+            right: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 10;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.25);
+            transition: background 0.3s ease;
+        }
+        .dot.active { background: #9b59b6; }
+    </style>
+</head>
+<body>
+
+    <div id="loading">Yuklanmoqda... 0%</div>
+
+    <div id="canvas-container"></div>
+
+    <div id="progress-dots">
+        <div class="dot" data-index="0"></div>
+        <div class="dot" data-index="1"></div>
+        <div class="dot" data-index="2"></div>
+        <div class="dot" data-index="3"></div>
+        <div class="dot" data-index="4"></div>
+    </div>
+
+    <!-- Scroll bo'limlari -->
+    <div id="hero" class="section">
+        <div class="section-content active">
+            <h1>TOYOTA SUPRA MK4</h1>
+            <p>Afsonaviy sport mashinasini interaktiv tarzda o'rganing</p>
+            <div class="scroll-hint">↓ Pastga scroll qiling ↓</div>
+        </div>
+    </div>
+
+    <div class="section" data-target="engine">
+        <div class="section-content">
+            <h2>2JZ-GTE Dvigateli</h2>
+            <p>3.0L Twin-Turbo inline-6 dvigatel, 320+ ot kuchi. Bu dvigatel o'zining mustahkamligi va tuning imkoniyatlari bilan afsonaga aylangan.</p>
+        </div>
+    </div>
+
+    <div class="section" data-target="interior">
+        <div class="section-content">
+            <h2>Sport Salon</h2>
+            <p>Haydovchiga qulay o'rindiqlar, sport rul va analog spidometrlar bilan jihozlangan 90-yillar dizayni.</p>
+        </div>
+    </div>
+
+    <div class="section" data-target="wheels">
+        <div class="section-content">
+            <h2>Yengil Qotishma G'ildiraklar</h2>
+            <p>Aerodinamik dizayndagi g'ildiraklar, yaxshi tutashuv va barqarorlikni ta'minlaydi.</p>
+        </div>
+    </div>
+
+    <div id="tuning" class="section">
+        <h2>🎨 O'zingizga moslang</h2>
+        <div class="color-palette">
+            <div class="color-swatch reset-swatch" onclick="resetCarColor()">↺</div>
+            <div class="color-swatch" style="background:#9b59b6" onclick="changeCarColor(0x9b59b6)"></div>
+            <div class="color-swatch" style="background:#e74c3c" onclick="changeCarColor(0xe74c3c)"></div>
+            <div class="color-swatch" style="background:#3498db" onclick="changeCarColor(0x3498db)"></div>
+            <div class="color-swatch" style="background:#f1c40f" onclick="changeCarColor(0xf1c40f)"></div>
+            <div class="color-swatch" style="background:#ffffff" onclick="changeCarColor(0xffffff)"></div>
+            <div class="color-swatch" style="background:#111111" onclick="changeCarColor(0x000000)"></div>
+        </div>
+    </div>
+
+    <!-- Kutubxonalar -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        let model;
+        let originalColors = [];
+
+        // 1. Sahna, kamera, renderer
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0a);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(4, 2, 6);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // 2. Yoritish
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        const fillLight = new THREE.DirectionalLight(0xffffff, 1);
+        fillLight.position.set(-5, -3, -5);
+        scene.add(fillLight);
+
+        // 3. Modelni yuklash
+        const loadingDiv = document.getElementById('loading');
+        const loader = new THREE.GLTFLoader();
+
+        loader.load(
+            '3d model/toyota_supra_mk4_a80.glb',
+            function (gltf) {
+                model = gltf.scene;
+                scene.add(model);
+
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                model.position.sub(center);
+
+                // Asl ranglarni saqlash
+                model.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(mat => {
+                            if (mat.color) originalColors.push({ material: mat, color: mat.color.clone() });
+                        });
+                    }
+                });
+
+                loadingDiv.style.display = 'none';
+                setupScrollAnimation(); // Model yuklangach, scroll animatsiyasini sozlaymiz
+            },
+            function (xhr) {
+                if (xhr.lengthComputable) {
+                    loadingDiv.textContent = 'Yuklanmoqda... ' + Math.round((xhr.loaded / xhr.total) * 100) + '%';
+                }
+            },
+            function (error) {
+                console.error('Xatolik:', error);
+                loadingDiv.textContent = 'Xatolik: model yuklanmadi';
+            }
+        );
+
+        // 4. Rang funksiyalari
+        function changeCarColor(hexColor) {
+            if (!model) return;
+            model.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(mat => { if (mat.color) mat.color.setHex(hexColor); });
+                }
+            });
+        }
+        function resetCarColor() {
+            originalColors.forEach(item => item.material.color.copy(item.color));
+        }
+
+        // 5. SCROLL ANIMATSIYASI (asosiy qism)
+        // MUHIM: quyidagi position/rotation qiymatlari NAMUNA — o'z modelingizga moslab sozlashingiz kerak bo'ladi
+        function setupScrollAnimation() {
+
+    // Har bir bo'lim uchun kamera holati (o'z modelingizga moslab sozlaysiz)
+    const cameraStops = [
+        { key: 'hero',     pos: { x: 4, y: 2, z: 6 },      look: { x: 0, y: 0, z: 0 } },
+        { key: 'engine',   pos: { x: 1.5, y: 0.8, z: 2 },  look: { x: 0, y: 0.3, z: 1 } },
+        { key: 'interior', pos: { x: 0.5, y: 1.2, z: 1 },  look: { x: 0, y: 0.6, z: 0 } },
+        { key: 'wheels',   pos: { x: -2, y: 0.5, z: 1.5 }, look: { x: -1, y: 0, z: 0.5 } },
+        { key: 'tuning',   pos: { x: 3.5, y: 1.5, z: 4 },  look: { x: 0, y: 0, z: 0 } }
+    ];
+
+    const sections = document.querySelectorAll('.section');
+    const dots = document.querySelectorAll('.dot');
+
+    // Kamera va lookAt uchun "joriy holat" obyektlari (tween shular ustida ishlaydi)
+    const camState = { x: cameraStops[0].pos.x, y: cameraStops[0].pos.y, z: cameraStops[0].pos.z };
+    const lookState = { x: cameraStops[0].look.x, y: cameraStops[0].look.y, z: cameraStops[0].look.z };
+
+    // BITTA umumiy timeline, scrub=true — scroll bilan 1:1 bog'langan
+    const tl = gsap.timeline({
+        scrollTrigger: {
+            trigger: document.body,
+            start: 'top top',
+            end: 'bottom bottom',
+            scrub: 1, // 1 sekundlik "yumshatish" — juda tez scrollda ham silliq bo'ladi
+            onUpdate: (self) => {
+                camera.position.set(camState.x, camState.y, camState.z);
+                camera.lookAt(lookState.x, lookState.y, lookState.z);
+
+                // Progress dots yangilash
+                const activeIndex = Math.round(self.progress * (cameraStops.length - 1));
+                dots.forEach(d => d.classList.remove('active'));
+                if (dots[activeIndex]) dots[activeIndex].classList.add('active');
+            }
+        }
+    });
+
+    // Har bir bosqich orasida tekis interpolatsiya qo'shamiz
+    for (let i = 1; i < cameraStops.length; i++) {
+        tl.to(camState, {
+            x: cameraStops[i].pos.x,
+            y: cameraStops[i].pos.y,
+            z: cameraStops[i].pos.z,
+            ease: 'none'
+        }, i - 1) // har bosqich uchun teng vaqt oralig'i
+          .to(lookState, {
+            x: cameraStops[i].look.x,
+            y: cameraStops[i].look.y,
+            z: cameraStops[i].look.z,
+            ease: 'none'
+        }, i - 1);
+    }
+
+    // Matnlarni scroll bilan ko'rsatish/yashirish (alohida, oddiy fade)
+    sections.forEach((section) => {
+        const content = section.querySelector('.section-content');
+        if (!content) return;
+
+        ScrollTrigger.create({
+            trigger: section,
+            start: 'top center',
+            end: 'bottom center',
+            onEnter: () => content.classList.add('active'),
+            onEnterBack: () => content.classList.add('active'),
+            onLeave: () => content.classList.remove('active'),
+            onLeaveBack: () => content.classList.remove('active'),
+        });
+    });
+}
+
+        // 6. Oyna o'lchami
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 7. Render sikli
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

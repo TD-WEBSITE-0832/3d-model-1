@@ -21,7 +21,6 @@
         }
         canvas { display: block; }
 
-        /* Scroll bilan harakatlanuvchi matn bo'limlari */
         .section {
             position: relative;
             height: 100vh;
@@ -87,7 +86,6 @@
             50% { transform: translateY(10px); }
         }
 
-        /* Tuning bo'limi - eng oxirida */
         #tuning {
             height: 100vh;
             display: flex;
@@ -135,7 +133,6 @@
             z-index: 100;
         }
 
-        /* Progress indikator */
         #progress-dots {
             position: fixed;
             right: 30px;
@@ -170,7 +167,6 @@
         <div class="dot" data-index="4"></div>
     </div>
 
-    <!-- Scroll bo'limlari -->
     <div id="hero" class="section">
         <div class="section-content active">
             <h1>TOYOTA SUPRA MK4</h1>
@@ -211,9 +207,27 @@
             <div class="color-swatch" style="background:#ffffff" onclick="changeCarColor(0xffffff)"></div>
             <div class="color-swatch" style="background:#111111" onclick="changeCarColor(0x000000)"></div>
         </div>
+
+        <!-- Orqa qanot tugmasi -->
+        <button id="spoilerBtn" onclick="toggleSpoiler()" style="margin-top:20px; padding:12px 28px; background:#9b59b6; color:#fff; border:none; border-radius:8px; font-size:16px; cursor:pointer; pointer-events:all;">
+            🏁 Orqa Qanot Qo'shish
+        </button>
     </div>
 
-    <!-- Kutubxonalar -->
+    <!-- VAQTINCHA SOZLASH PANELI (to'g'ri joyni topgach o'chiramiz) -->
+    <div id="debugPanel" style="position:fixed; bottom:20px; left:20px; background:rgba(0,0,0,0.85); padding:15px; border-radius:10px; z-index:50; font-size:13px; width:260px;">
+        <div style="margin-bottom:8px;"><b>Spoyler sozlash</b></div>
+        <label>Scale: <span id="scaleVal">1</span></label>
+        <input type="range" id="scaleSlider" min="0.01" max="3" step="0.01" value="1" style="width:100%;"><br>
+        <label>Pos Y: <span id="posYVal">0.9</span></label>
+        <input type="range" id="posYSlider" min="-2" max="3" step="0.05" value="0.9" style="width:100%;"><br>
+        <label>Pos Z: <span id="posZVal">-1.6</span></label>
+        <input type="range" id="posZSlider" min="-4" max="4" step="0.05" value="-1.6" style="width:100%;"><br>
+        <label>Rotation Y: <span id="rotYVal">180</span>°</label>
+        <input type="range" id="rotYSlider" min="0" max="360" step="1" value="180" style="width:100%;"><br>
+        <button onclick="printSpoilerValues()" style="margin-top:8px; width:100%; padding:8px; cursor:pointer;">📋 Qiymatlarni konsolga chiqarish</button>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -222,7 +236,9 @@
     <script>
         gsap.registerPlugin(ScrollTrigger);
 
+        // 0. Global o'zgaruvchilar
         let model;
+        let spoilerModel;
         let originalColors = [];
 
         // 1. Sahna, kamera, renderer
@@ -246,7 +262,7 @@
         fillLight.position.set(-5, -3, -5);
         scene.add(fillLight);
 
-        // 3. Modelni yuklash
+        // 3. Asosiy Supra modelini yuklash
         const loadingDiv = document.getElementById('loading');
         const loader = new THREE.GLTFLoader();
 
@@ -271,7 +287,7 @@
                 });
 
                 loadingDiv.style.display = 'none';
-                setupScrollAnimation(); // Model yuklangach, scroll animatsiyasini sozlaymiz
+                setupScrollAnimation();
             },
             function (xhr) {
                 if (xhr.lengthComputable) {
@@ -284,91 +300,176 @@
             }
         );
 
-        // 4. Rang funksiyalari
+        // 3.5 Spoylerni (orqa qanot) alohida yuklash
+       loader.load(
+    '3d model/big_gt_wing.glb',  // <-- eski nom o'rniga yangisi
+    function (gltf) {
+        spoilerModel = gltf.scene;
+
+                // Boshlang'ich qiymatlar (sozlash paneli orqali o'zgartiriladi)
+                spoilerModel.position.set(0, 0.9, -1.6);
+                spoilerModel.rotation.y = Math.PI;
+                spoilerModel.scale.set(1, 1, 1);
+
+                // Boshida yashirin — faqat tugma bosilganda ko'rinadi
+                spoilerModel.visible = false;
+
+                scene.add(spoilerModel);
+
+                // Spoyler rangini ham asl ranglar ro'yxatiga qo'shamiz
+                spoilerModel.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(mat => {
+                            if (mat.color) originalColors.push({ material: mat, color: mat.color.clone() });
+                        });
+                    }
+                });
+
+                console.log('Spoyler muvaffaqiyatli yuklandi!');
+                setupDebugPanel(); // spoyler yuklangach, sozlash panelini ishga tushiramiz
+            },
+            undefined,
+            function (error) {
+                console.error('Spoylerni yuklashda xatolik:', error);
+            }
+        );
+
+        // 4. Rang funksiyalari (Supra + spoyler birga rang oladi)
         function changeCarColor(hexColor) {
             if (!model) return;
+
             model.traverse((child) => {
                 if (child.isMesh && child.material) {
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(mat => { if (mat.color) mat.color.setHex(hexColor); });
                 }
             });
+
+            if (spoilerModel) {
+                spoilerModel.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(mat => { if (mat.color) mat.color.setHex(hexColor); });
+                    }
+                });
+            }
         }
+
         function resetCarColor() {
             originalColors.forEach(item => item.material.color.copy(item.color));
         }
 
-        // 5. SCROLL ANIMATSIYASI (asosiy qism)
-        // MUHIM: quyidagi position/rotation qiymatlari NAMUNA — o'z modelingizga moslab sozlashingiz kerak bo'ladi
+        // Spoylerni ko'rsatish/yashirish
+        function toggleSpoiler() {
+            if (!spoilerModel) return;
+            spoilerModel.visible = !spoilerModel.visible;
+            document.getElementById('spoilerBtn').textContent = spoilerModel.visible
+                ? '❌ Qanotni Olib Tashlash'
+                : '🏁 Orqa Qanot Qo\'shish';
+        }
+
+        // Vaqtinchalik sozlash paneli — real vaqtda joylashtirish
+        function setupDebugPanel() {
+            const scaleSlider = document.getElementById('scaleSlider');
+            const posYSlider = document.getElementById('posYSlider');
+            const posZSlider = document.getElementById('posZSlider');
+            const rotYSlider = document.getElementById('rotYSlider');
+
+            function update() {
+                if (!spoilerModel) return;
+                const s = parseFloat(scaleSlider.value);
+                spoilerModel.scale.set(s, s, s);
+                spoilerModel.position.y = parseFloat(posYSlider.value);
+                spoilerModel.position.z = parseFloat(posZSlider.value);
+                spoilerModel.rotation.y = THREE.MathUtils.degToRad(parseFloat(rotYSlider.value));
+
+                document.getElementById('scaleVal').textContent = s;
+                document.getElementById('posYVal').textContent = posYSlider.value;
+                document.getElementById('posZVal').textContent = posZSlider.value;
+                document.getElementById('rotYVal').textContent = rotYSlider.value;
+
+                // Sozlash paytida spoyler ko'rinsin
+                spoilerModel.visible = true;
+            }
+
+            [scaleSlider, posYSlider, posZSlider, rotYSlider].forEach(el => {
+                el.addEventListener('input', update);
+            });
+        }
+
+        function printSpoilerValues() {
+            if (!spoilerModel) return;
+            console.log('=== SPOYLER QIYMATLARI ===');
+            console.log('position.set(' + spoilerModel.position.x.toFixed(2) + ', ' + spoilerModel.position.y.toFixed(2) + ', ' + spoilerModel.position.z.toFixed(2) + ');');
+            console.log('scale.set(' + spoilerModel.scale.x.toFixed(2) + ', ' + spoilerModel.scale.y.toFixed(2) + ', ' + spoilerModel.scale.z.toFixed(2) + ');');
+            console.log('rotation.y = THREE.MathUtils.degToRad(' + THREE.MathUtils.radToDeg(spoilerModel.rotation.y).toFixed(0) + ');');
+        }
+
+        // 5. Scroll animatsiyasi
         function setupScrollAnimation() {
 
-    // Har bir bo'lim uchun kamera holati (o'z modelingizga moslab sozlaysiz)
-    const cameraStops = [
-        { key: 'hero',     pos: { x: 4, y: 2, z: 6 },      look: { x: 0, y: 0, z: 0 } },
-        { key: 'engine',   pos: { x: 1.5, y: 0.8, z: 2 },  look: { x: 0, y: 0.3, z: 1 } },
-        { key: 'interior', pos: { x: 0.5, y: 1.2, z: 1 },  look: { x: 0, y: 0.6, z: 0 } },
-        { key: 'wheels',   pos: { x: -2, y: 0.5, z: 1.5 }, look: { x: -1, y: 0, z: 0.5 } },
-        { key: 'tuning',   pos: { x: 3.5, y: 1.5, z: 4 },  look: { x: 0, y: 0, z: 0 } }
-    ];
+            const cameraStops = [
+                { key: 'hero',     pos: { x: 4, y: 2, z: 6 },      look: { x: 0, y: 0, z: 0 } },
+                { key: 'engine',   pos: { x: 1.5, y: 0.8, z: 2 },  look: { x: 0, y: 0.3, z: 1 } },
+                { key: 'interior', pos: { x: 0.5, y: 1.2, z: 1 },  look: { x: 0, y: 0.6, z: 0 } },
+                { key: 'wheels',   pos: { x: -2, y: 0.5, z: 1.5 }, look: { x: -1, y: 0, z: 0.5 } },
+                { key: 'tuning',   pos: { x: 3.5, y: 1.5, z: 4 },  look: { x: 0, y: 0, z: 0 } }
+            ];
 
-    const sections = document.querySelectorAll('.section');
-    const dots = document.querySelectorAll('.dot');
+            const sections = document.querySelectorAll('.section');
+            const dots = document.querySelectorAll('.dot');
 
-    // Kamera va lookAt uchun "joriy holat" obyektlari (tween shular ustida ishlaydi)
-    const camState = { x: cameraStops[0].pos.x, y: cameraStops[0].pos.y, z: cameraStops[0].pos.z };
-    const lookState = { x: cameraStops[0].look.x, y: cameraStops[0].look.y, z: cameraStops[0].look.z };
+            const camState = { x: cameraStops[0].pos.x, y: cameraStops[0].pos.y, z: cameraStops[0].pos.z };
+            const lookState = { x: cameraStops[0].look.x, y: cameraStops[0].look.y, z: cameraStops[0].look.z };
 
-    // BITTA umumiy timeline, scrub=true — scroll bilan 1:1 bog'langan
-    const tl = gsap.timeline({
-        scrollTrigger: {
-            trigger: document.body,
-            start: 'top top',
-            end: 'bottom bottom',
-            scrub: 1, // 1 sekundlik "yumshatish" — juda tez scrollda ham silliq bo'ladi
-            onUpdate: (self) => {
-                camera.position.set(camState.x, camState.y, camState.z);
-                camera.lookAt(lookState.x, lookState.y, lookState.z);
+            const tl = gsap.timeline({
+                scrollTrigger: {
+                    trigger: document.body,
+                    start: 'top top',
+                    end: 'bottom bottom',
+                    scrub: 1,
+                    onUpdate: (self) => {
+                        camera.position.set(camState.x, camState.y, camState.z);
+                        camera.lookAt(lookState.x, lookState.y, lookState.z);
 
-                // Progress dots yangilash
-                const activeIndex = Math.round(self.progress * (cameraStops.length - 1));
-                dots.forEach(d => d.classList.remove('active'));
-                if (dots[activeIndex]) dots[activeIndex].classList.add('active');
+                        const activeIndex = Math.round(self.progress * (cameraStops.length - 1));
+                        dots.forEach(d => d.classList.remove('active'));
+                        if (dots[activeIndex]) dots[activeIndex].classList.add('active');
+                    }
+                }
+            });
+
+            for (let i = 1; i < cameraStops.length; i++) {
+                tl.to(camState, {
+                    x: cameraStops[i].pos.x,
+                    y: cameraStops[i].pos.y,
+                    z: cameraStops[i].pos.z,
+                    ease: 'none'
+                }, i - 1)
+                  .to(lookState, {
+                    x: cameraStops[i].look.x,
+                    y: cameraStops[i].look.y,
+                    z: cameraStops[i].look.z,
+                    ease: 'none'
+                }, i - 1);
             }
+
+            sections.forEach((section) => {
+                const content = section.querySelector('.section-content');
+                if (!content) return;
+
+                ScrollTrigger.create({
+                    trigger: section,
+                    start: 'top center',
+                    end: 'bottom center',
+                    onEnter: () => content.classList.add('active'),
+                    onEnterBack: () => content.classList.add('active'),
+                    onLeave: () => content.classList.remove('active'),
+                    onLeaveBack: () => content.classList.remove('active'),
+                });
+            });
         }
-    });
-
-    // Har bir bosqich orasida tekis interpolatsiya qo'shamiz
-    for (let i = 1; i < cameraStops.length; i++) {
-        tl.to(camState, {
-            x: cameraStops[i].pos.x,
-            y: cameraStops[i].pos.y,
-            z: cameraStops[i].pos.z,
-            ease: 'none'
-        }, i - 1) // har bosqich uchun teng vaqt oralig'i
-          .to(lookState, {
-            x: cameraStops[i].look.x,
-            y: cameraStops[i].look.y,
-            z: cameraStops[i].look.z,
-            ease: 'none'
-        }, i - 1);
-    }
-
-    // Matnlarni scroll bilan ko'rsatish/yashirish (alohida, oddiy fade)
-    sections.forEach((section) => {
-        const content = section.querySelector('.section-content');
-        if (!content) return;
-
-        ScrollTrigger.create({
-            trigger: section,
-            start: 'top center',
-            end: 'bottom center',
-            onEnter: () => content.classList.add('active'),
-            onEnterBack: () => content.classList.add('active'),
-            onLeave: () => content.classList.remove('active'),
-            onLeaveBack: () => content.classList.remove('active'),
-        });
-    });
-}
 
         // 6. Oyna o'lchami
         window.addEventListener('resize', () => {
